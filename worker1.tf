@@ -13,27 +13,4 @@ resource "vultr_instance" "worker1" {
       - sudo iptables -A INPUT -p udp --dport 7946 -j ACCEPT
       - sudo iptables -A INPUT -p udp --dport 4789 -j ACCEPT
     EOF
-
-  connection {
-    type     = "ssh"
-    user     = "root"
-    password = vultr_instance.worker1.default_password
-    host     = vultr_instance.worker1.main_ip
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "docker swarm join --token ${data.external.manager1_token.result.manager} ${vultr_instance.manager1.main_ip}:2377",
-    ]
-  }
-}
-
-data "external" "manager1_token" {
-  program = ["./scripts/fetch-tokens.sh"]
-
-  query = {
-    host = "${vultr_instance.manager1.main_ip}"
-  }
-
-  depends_on = [vultr_instance.manager1]
 }

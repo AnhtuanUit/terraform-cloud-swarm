@@ -20,10 +20,4 @@ resource "vultr_instance" "worker2" {
     password = vultr_instance.worker2.default_password
     host     = vultr_instance.worker2.main_ip
   }
-
-  provisioner "remote-exec" {
-    inline = [
-      "docker swarm join --token ${data.external.manager1_token.result.manager} ${vultr_instance.manager1.main_ip}:2377",
-    ]
-  }
 }
