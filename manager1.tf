@@ -15,6 +15,7 @@ resource "vultr_instance" "manager1" {
       - sudo iptables -A INPUT -p tcp --dport 7946 -j ACCEPT
       - sudo iptables -A INPUT -p udp --dport 7946 -j ACCEPT
       - sudo iptables -A INPUT -p udp --dport 4789 -j ACCEPT
+      - docker swarm init --force-new-cluster
     EOF
 
   connection {
@@ -23,6 +24,7 @@ resource "vultr_instance" "manager1" {
     password = vultr_instance.manager1.default_password
     host     = vultr_instance.manager1.main_ip
   }
+
   // Verify vultr host setup done
   provisioner "remote-exec" {
     inline = [
@@ -33,6 +35,107 @@ resource "vultr_instance" "manager1" {
   provisioner "local-exec" {
     # The command to execute on the local machine to download the public key
     command = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null local-data/vult_ssh_key root@${vultr_instance.manager1.main_ip}:/root/.ssh/id_rsa"
+  }
+}
+
+
+      
+resource "null_resource" "install-registry" {
+  depends_on = [vultr_instance.manager1]
+
+  connection {
+    type     = "ssh"
+    user     = "root"
+    password = vultr_instance.manager1.default_password
+    host     = vultr_instance.manager1.main_ip
+    agent = false
+  }
+
+  provisioner "remote-exec" {
+    # Start Docker registry
+    inline = [
+      # Check if port not running then deploy docker resgister
+      "docker service create --name registry --publish published=5000,target=5000 registry:2",
+    ]
+  }
+}
+
+resource "github_repository_deploy_key" "example" {
+  depends_on = [ vultr_instance.manager1 ]
+  
+  repository = var.GITHUB_REPO
+  title      = "Vultr Deploy Key Manager1"
+  key        = file("local-data/vult_ssh_key.pub")
+  read_only = true
+}
+
+# resource "null_resource" "git_clone" {
+#   depends_on = [vultr_instance.manager1, github_repository_deploy_key.example]
+
+#   connection {
+#     type     = "ssh"
+#     user     = "root"
+#     password = vultr_instance.manager1.default_password
+#     host     = vultr_instance.manager1.main_ip
+#     agent = false
+#   }
+
+#   provisioner "remote-exec" {
+#     inline = [
+#       "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/known_hosts' git clone git@github.com:${var.GITHUB_USERNAME}/${var.GITHUB_REPO}.git",
+#     ]
+#   }
+# }
+
+resource "null_resource" "install-docker-compose" {
+  depends_on = [vultr_instance.manager1]
+
+  connection {
+    type     = "ssh"
+    user     = "root"
+    password = vultr_instance.manager1.default_password
+    host     = vultr_instance.manager1.main_ip
+    agent = false
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "set -e",
+      # Install docker-compose
+      "sudo curl -L \"https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose",
+      "sudo chmod +x /usr/local/bin/docker-compose",
+      "docker-compose --version",
+    ]
+  }
+}
+
+resource "null_resource" "stack-deploy" {
+  depends_on = [vultr_instance.manager1, github_repository_deploy_key.example, null_resource.install-docker-compose, null_resource.install-registry]
+
+  connection {
+    type     = "ssh"
+    user     = "root"
+    password = vultr_instance.manager1.default_password
+    host     = vultr_instance.manager1.main_ip
+    agent = false
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "set -e",
+      "[ ! -d \"${var.GITHUB_REPO}\" ] &&  GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/known_hosts' git clone git@github.com:${var.GITHUB_USERNAME}/${var.GITHUB_REPO}.git",
+      # Clone source code
+      "cd ${var.GITHUB_REPO}",
+      "cp .env.example .env",
+      # Test source code
+      "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml up -d",
+      "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml down",
+      # Publish source image
+      "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml push",
+      # Deploy
+      "docker stack deploy -c docker-compose.yml -c docker-compose.dev.yml -c docker-compose.swarm.yml stack-name",
+      "docker stack ps stack-name",
+    ]
   }
 }
 
@@ -50,18 +153,8 @@ resource "null_resource" "connect_hosts" {
   }
 }
 
-resource "github_repository_deploy_key" "example" {
-  depends_on = [ vultr_instance.manager1 ]
-  
-  repository = var.GITHUB_REPO
-  title      = "Vultr Deploy Key Manager1"
-  key        = file("local-data/vult_ssh_key.pub")
-  read_only = true
-}
-
-
-resource "null_resource" "git_clone" {
-  depends_on = [github_repository_deploy_key.example]
+resource "null_resource" "stack-scale" {
+  depends_on = [null_resource.connect_hosts, null_resource.stack-deploy]
 
   connection {
     type     = "ssh"
@@ -73,31 +166,24 @@ resource "null_resource" "git_clone" {
 
   provisioner "remote-exec" {
     inline = [
-      "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/known_hosts' git clone git@github.com:${var.GITHUB_USERNAME}/${var.GITHUB_REPO}.git",
+      # Scale service
+      "docker service scale stack-name_mongodb=2 stack-name_node-app=6"
     ]
   }
 }
 
-resource "github_actions_secret" "example_secret" {
+resource "github_actions_secret" "HOST" {
   repository       = var.GITHUB_REPO
   secret_name      = "HOST"
   plaintext_value  = vultr_instance.manager1.main_ip
 
-  depends_on = [vultr_instance.manager1, null_resource.git_clone]
+  depends_on = [vultr_instance.manager1]
 }
 
-resource "github_actions_secret" "example_secret2" {
-  repository       = var.GITHUB_REPO
-  secret_name      = "PRIVATE_KEY"
-  plaintext_value  = vultr_instance.manager1.default_password
-
-  depends_on = [vultr_instance.manager1, null_resource.git_clone]
-}
-
-resource "github_actions_secret" "example_secret3" {
+resource "github_actions_secret" "USERNAME" {
   repository       = var.GITHUB_REPO
   secret_name      = "USERNAME"
   plaintext_value  = "root"
 
-  depends_on = [vultr_instance.manager1, null_resource.git_clone]
+  depends_on = [vultr_instance.manager1]
 }
