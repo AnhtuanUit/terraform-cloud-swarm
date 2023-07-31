@@ -1,7 +1,6 @@
 terraform {
 
   required_providers {
-
     vultr = {
 
       source = "vultr/vultr"
@@ -9,12 +8,18 @@ terraform {
       version = ">= 2.10.1"
 
     }
-
+  github = {
+      source  = "integrations/github"
+      version = "~> 5.0"
+    }
   }
 
 }
 
-
+# Configure the GitHub Provider
+provider "github" {
+  token = var.GITHUB_TOKEN
+}
 
 provider "vultr" {
 
@@ -22,6 +27,5 @@ provider "vultr" {
 
 }
 
-
-
 variable "VULTR_API_KEY" {}
+variable "GITHUB_TOKEN" {}
