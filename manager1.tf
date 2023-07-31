@@ -23,50 +23,45 @@ resource "vultr_instance" "manager1" {
     password = vultr_instance.manager1.default_password
     host     = vultr_instance.manager1.main_ip
   }
-
+  // Verify vultr host setup done
   provisioner "remote-exec" {
     inline = [
-      "touch hello-mamager.txt",
+      "echo Manager1 connected",
     ]
   }
 
   provisioner "local-exec" {
     # The command to execute on the local machine to download the public key
-    command = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /Users/tuando/Documents/Workspace/demos/terrafrom-demo/local-data/vult_ssh_key root@${vultr_instance.manager1.main_ip}:/root/.ssh/id_rsa"
+    command = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null local-data/vult_ssh_key root@${vultr_instance.manager1.main_ip}:/root/.ssh/id_rsa"
   }
-
-  # provisioner "local-exec" {
-  #   # The command to execute on the local machine to download the public key
-  #   command = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.manager1.main_ip} 'git clone git@github.com:AnhtuanUit/example-repo.git'"
-  # }  
 }
 
-# resource "null_resource" "download_ssh_key" {
-#   # Triggers the provisioner to run when the Vultr server has been created
-#   triggers = {
-#     id = vultr_instance.manager1.main_ip
-#   }
-#   # provisioner "local-exec" {
-#   #   # The command to execute on the local machine to download the public key
-#   #   command = "ssh root@${vultr_instance.manager1.main_ip}:/root/.ssh/id_rsa.pub local-data/vultr_ssh_key.pub"
-#   # }
+resource "null_resource" "connect_hosts" {
+  depends_on = [vultr_instance.manager1, vultr_instance.worker1, vultr_instance.worker2]
 
+  provisioner "local-exec" {
+    # The command to execute on the local machine to download the public key
+    command = <<-EOT
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.manager1.main_ip} docker swarm init --force-new-cluster;
+      TOKEN=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.manager1.main_ip} docker swarm join-token manager -q);
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.worker1.main_ip} docker swarm join --token $TOKEN ${vultr_instance.manager1.main_ip}:2377;
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.worker2.main_ip} docker swarm join --token $TOKEN ${vultr_instance.manager1.main_ip}:2377;
+    EOT
+  }
+}
+
+resource "github_repository_deploy_key" "example" {
+  depends_on = [ vultr_instance.manager1 ]
   
-#   # provisioner "local-exec" {
-#   #   # Download source
-#   #   command = "ssh local-data/vult_ssh_key root@${vultr_instance.manager1.main_ip}:~/.ssh/id_rsa"
-#   # }
-# }
-
-# resource "github_repository_deploy_key" "example" {
-#   repository = "example-repo"
-#   title      = "Vultr Deploy Key"
-#   key        = file("local-data/vult_ssh_key.pub")
-# }
+  repository = var.GITHUB_REPO
+  title      = "Vultr Deploy Key Manager1"
+  key        = file("local-data/vult_ssh_key.pub")
+  read_only = true
+}
 
 
 resource "null_resource" "git_clone" {
-  # depends_on = [github_repository_deploy_key.example]
+  depends_on = [github_repository_deploy_key.example]
 
   connection {
     type     = "ssh"
@@ -78,56 +73,31 @@ resource "null_resource" "git_clone" {
 
   provisioner "remote-exec" {
     inline = [
-      # Add the GitHub.com host key to the known_hosts file temporarily
-      # "ssh-keyscan github.com >> /tmp/known_hosts",
-      # "chmod 644 /tmp/known_hosts",
-      # Use the temporary known_hosts file during the git clone command
-      "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/known_hosts' git clone git@github.com:AnhtuanUit/example-repo.git",
-      # Remove the temporary known_hosts file after the git clone
-      # "rm /tmp/known_hosts",
+      "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/known_hosts' git clone git@github.com:${var.GITHUB_USERNAME}/${var.GITHUB_REPO}.git",
     ]
   }
 }
 
-# resource "null_resource" "git_clone1" {
-#   # depends_on = [github_repository_deploy_key.example]
+resource "github_actions_secret" "example_secret" {
+  repository       = var.GITHUB_REPO
+  secret_name      = "HOST"
+  plaintext_value  = vultr_instance.manager1.main_ip
 
-#   connection {
-#     type     = "ssh"
-#     user     = "root"
-#     password = vultr_instance.manager1.default_password
-#     host     = vultr_instance.manager1.main_ip
-#     agent = false
-#   }
+  depends_on = [vultr_instance.manager1, null_resource.git_clone]
+}
 
-#   provisioner "remote-exec" {
-#     inline = [
-#       # Use the temporary known_hosts file during the git clone command
-#       "git clone git@github.com:AnhtuanUit/example-repo.git example-repo-test",
-#       # Remove the temporary known_hosts file after the git clone
-#       # "rm /tmp/known_hosts",
-#     ]
-#   }
-# }
+resource "github_actions_secret" "example_secret2" {
+  repository       = var.GITHUB_REPO
+  secret_name      = "PRIVATE_KEY"
+  plaintext_value  = vultr_instance.manager1.default_password
 
-resource "null_resource" "git_clone3" {
-  depends_on = [null_resource.git_clone]
+  depends_on = [vultr_instance.manager1, null_resource.git_clone]
+}
 
-  connection {
-    type     = "ssh"
-    user     = "root"
-    password = vultr_instance.manager1.default_password
-    host     = vultr_instance.manager1.main_ip
-    agent = false
-  }
+resource "github_actions_secret" "example_secret3" {
+  repository       = var.GITHUB_REPO
+  secret_name      = "USERNAME"
+  plaintext_value  = "root"
 
-  provisioner "remote-exec" {
-    inline = [
-      # Use the temporary known_hosts file during the git clone command
-      "cd example-repo",
-      "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/known_hosts' git pull",
-      # Remove the temporary known_hosts file after the git clone
-      # "rm /tmp/known_hosts",
-    ]
-  }
+  depends_on = [vultr_instance.manager1, null_resource.git_clone]
 }

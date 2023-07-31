@@ -29,3 +29,5 @@ provider "vultr" {
 
 variable "VULTR_API_KEY" {}
 variable "GITHUB_TOKEN" {}
+variable "GITHUB_REPO" {}
+variable "GITHUB_USERNAME" {}
