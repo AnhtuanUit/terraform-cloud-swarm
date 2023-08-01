@@ -2,6 +2,7 @@
 
 resource "vultr_instance" "manager1" {
   label = "manager1"
+  hostname = "manager1"
   plan             = "vc2-1c-1gb"   # Using 1GB of RAM
   region           = "sgp"         # Region is Singapore
   image_id         = "docker"        # Using the Docker OS (OS ID for Docker) 
