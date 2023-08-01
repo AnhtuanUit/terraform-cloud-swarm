@@ -17,7 +17,6 @@ resource "vultr_instance" "manager1" {
       - sudo iptables -A INPUT -p udp --dport 4789 -j ACCEPT
       - docker swarm init --force-new-cluster
     EOF
-
   connection {
     type     = "ssh"
     user     = "root"
@@ -55,7 +54,7 @@ resource "null_resource" "install-registry" {
     # Start Docker registry
     inline = [
       # Check if port not running then deploy docker resgister
-      "docker service create --name registry --publish published=5000,target=5000 registry:2",
+      "docker service create --name registry --publish published=5000,target=5000 registry:2"
     ]
   }
 }
@@ -127,9 +126,8 @@ resource "null_resource" "stack-deploy" {
       # Clone source code
       "cd ${var.GITHUB_REPO}",
       "cp .env.example .env",
-      # Test source code
-      "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml up -d",
-      "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml down",
+      # Docker-compoe build or rebuild all images needed
+      "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml build",
       # Publish source image
       "docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.swarm.yml push",
       # Deploy
@@ -145,7 +143,6 @@ resource "null_resource" "connect_hosts" {
   provisioner "local-exec" {
     # The command to execute on the local machine to download the public key
     command = <<-EOT
-      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.manager1.main_ip} docker swarm init --force-new-cluster;
       TOKEN=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.manager1.main_ip} docker swarm join-token manager -q);
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.worker1.main_ip} docker swarm join --token $TOKEN ${vultr_instance.manager1.main_ip}:2377;
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${vultr_instance.worker2.main_ip} docker swarm join --token $TOKEN ${vultr_instance.manager1.main_ip}:2377;
@@ -167,7 +164,7 @@ resource "null_resource" "stack-scale" {
   provisioner "remote-exec" {
     inline = [
       # Scale service
-      "docker service scale stack-name_mongodb=2 stack-name_node-app=6"
+      "docker service scale stack-name_mongodb=1 stack-name_node-app=2"
     ]
   }
 }
