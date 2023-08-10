@@ -4,6 +4,7 @@
 provider "registry.terraform.io/hashicorp/null" {
   version = "3.2.1"
   hashes = [
+    "h1:FbGfc+muBsC17Ohy5g806iuI1hQc4SIexpYCrQHQd8w=",
     "h1:tSj1mL6OQ8ILGqR2mDu7OYYYWf+hoir0pf9KAQ8IzO8=",
     "zh:58ed64389620cc7b82f01332e27723856422820cfd302e304b5f6c3436fb9840",
     "zh:62a5cc82c3b2ddef7ef3a6f2fedb7b9b3deff4ab7b414938b08e51d6e8be87cb",
@@ -24,6 +25,7 @@ provider "registry.terraform.io/integrations/github" {
   version     = "5.32.0"
   constraints = "~> 5.0"
   hashes = [
+    "h1:2+ykRJOPosx0nlqrGPFcBLiP5rNurpP4miwbQMBFPYI=",
     "h1:igCF0XbR3EVR6H7pQg2bjRlNwK+KyW+z8i1DoTi7y7c=",
     "zh:06a406a6563d0fc73789196316b01f40c2a65fdb3f92d2797c0bd9f9a3ac0b6b",
     "zh:0981f5ee76d5a8dd8f72c759a7f62e25a5746a7da444df267bd744fa06af96c7",
@@ -46,6 +48,7 @@ provider "registry.terraform.io/pablovarela/slack" {
   version     = "1.2.2"
   constraints = "~> 1.0"
   hashes = [
+    "h1:0cQTyJPZUA2AYz+tKQ4z6Vbm0LwZbvtLOAsStWxFkIE=",
     "h1:eNX77+dnJ7JRx9xX7WHMNy4QUxlcEXDUzldOunLDRNk=",
     "zh:001870e887a1e29a328b87f6431444d8d60e3c7e958fae2e885fbfc4d345886a",
     "zh:065ff64914739cb2942a5a133b2f6e37c3a4278199ca2416d4c578f4d5a12659",
@@ -69,6 +72,7 @@ provider "registry.terraform.io/vultr/vultr" {
   constraints = ">= 2.10.1"
   hashes = [
     "h1:h/JLDaNJa5tHHYgdfcDmW5v+zV41uLOqwTBV4ERXHdg=",
+    "h1:hLWCN0weDF5vWN70J6jgqQ9Jo84fqWR+fVtg2lI9btk=",
     "zh:127ffccc84f73acc0761da41a8be57b5c5959e978482e5a79736aeaf1883ed75",
     "zh:2c48adaa21734f1266d25cd0bb4f3c9abc621aeacf43461dddaac467be9942c5",
     "zh:3b228f9462a44c24d18270a8f7013481aca754dac18f7848d230ca9e2e8a98ec",
