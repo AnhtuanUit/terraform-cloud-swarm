@@ -33,6 +33,7 @@ terraform init
 ### Initialize SSH Key
 
 ```bash
+mkdir -p local-data
 chmod +x scripts/init-ssh-key.sh
 ./scripts/init-ssh-key.sh
 ```
