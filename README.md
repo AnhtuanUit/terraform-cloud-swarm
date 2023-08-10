@@ -1,5 +1,3 @@
-
-```markdown
 ## Quick Start
 
 ### Install Terraform
